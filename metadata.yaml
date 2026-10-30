@@ -5,7 +5,7 @@ desc: 小黑盒 App 扫码登录（凭证落盘、重启有效），读取本人
 version: 3.1.0
 author: local
 repo: "https://github.com/syxxjgh/astrbot_plugin_pbz"
-help: "pbz登录：用小黑盒 App 扫码，绑定到自己的 QQ（每人一份，跨群通用）\npbz账号：账号详情，含小黑盒 ID、SteamID、影之刃零存档\npbz战绩：生涯长图（身陨 / BOSS / 收集 / 装备 / 任务 / 地图）\npbz状态：查看登录状态\npbz退出：清除登录"
+help: "pbz帮助：指令一览\npbz登录：小黑盒 App 扫码，绑定到自己的 QQ（每人一份，跨群通用）\npbz账号：账号详情，含小黑盒 ID、SteamID、影之刃零存档\npbz战绩：自己的生涯长图（身陨 / BOSS / 收集 / 装备 / 任务 / 地图）\npbz战绩 <QQ号>：查指定 QQ 的战绩\npbz战绩 @某人：查被 @ 的人的战绩\npbz状态：查看登录状态\npbz退出：清除登录"
 astrbot_version: ">=4.10.4"
 support_platforms:
   - aiocqhttp

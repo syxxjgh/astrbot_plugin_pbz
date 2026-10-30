@@ -19,6 +19,7 @@ from typing import Any
 import aiohttp
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.message_components import At
 from astrbot.api.message_components import Image as CompImage
 from astrbot.api.message_components import Plain
 from astrbot.api.star import Context, Star, StarTools, register
@@ -37,6 +38,24 @@ from .heybox import (
 
 PLUGIN = "astrbot_plugin_pbz"
 PBZ_APPID = "4115450"
+
+HELP_TEXT = """影之刃零助手 · 指令一览
+
+【账号】
+pbz登录    小黑盒 App 扫码，绑定到自己的 QQ
+pbz账号    昵称、小黑盒 ID、SteamID、影之刃零入库情况
+pbz状态    当前登录状态与渠道
+pbz退出    清除自己的登录凭证
+
+【战绩】
+pbz战绩            生成自己的生涯长图
+pbz战绩 <QQ号>     查指定 QQ 的战绩
+pbz战绩 @某人      查被 @ 的人的战绩
+
+【其它】
+pbz帮助            显示这份说明
+
+数据来自小黑盒云存档解析；没绑定小黑盒的人查不到战绩。"""
 
 
 @register(PLUGIN, "local", "影之刃零助手", "2.0.0")
@@ -266,6 +285,21 @@ class PbzPlugin(Star):
         return "\n".join(lines)
 
     @staticmethod
+    def _target_qq(event: AstrMessageEvent, arg: str = "") -> str:
+        """从 @ 组件或纯数字参数里取出目标 QQ。"""
+        try:
+            messages = event.get_messages()
+        except Exception:  # noqa: BLE001
+            messages = getattr(getattr(event, "message_obj", None), "message", []) or []
+        for seg in messages or []:
+            if isinstance(seg, At):
+                qq = str(getattr(seg, "qq", "") or "")
+                if qq.isdigit():
+                    return qq
+        text = str(arg or "").strip().lstrip("@")
+        return text if text.isdigit() else ""
+
+    @staticmethod
     def _err(exc: Exception) -> str:
         if isinstance(exc, HeyboxLoginRequired):
             return "小黑盒登录已失效，请管理员重新发送 pbz登录"
@@ -382,6 +416,10 @@ class PbzPlugin(Star):
             text = "（当前在用旧版共享登录，建议发送 pbz登录 绑定你自己的账号）\n" + text
         yield event.plain_result(text)
 
+    @filter.command("pbz帮助")
+    async def help_cmd(self, event: AstrMessageEvent):
+        yield event.plain_result(HELP_TEXT)
+
     @filter.command("pbz退出")
     async def logout(self, event: AstrMessageEvent):
         sender = str(event.get_sender_id() or "")
@@ -406,20 +444,36 @@ class PbzPlugin(Star):
     # ==================== 战绩 ====================
 
     @filter.command("pbz战绩")
-    async def record(self, event: AstrMessageEvent):
+    async def record(self, event: AstrMessageEvent, target: str = ""):
         sender = str(event.get_sender_id() or "")
-        acc, legacy = self._resolve_account(event)
-        if not acc:
-            yield event.plain_result(
-                "你还没有登录小黑盒。\n私聊机器人发送 pbz登录 扫码，绑定你自己的账号。"
-            )
-            return
+        target_qq = self._target_qq(event, target)
+        others = bool(target_qq) and target_qq != sender
+
+        if others:
+            acc = self._account(target_qq)
+            legacy = False
+            if not acc:
+                yield event.plain_result(f"QQ {target_qq} 还没有绑定小黑盒，查不到战绩。")
+                return
+        else:
+            acc, legacy = self._resolve_account(event)
+            if not acc:
+                yield event.plain_result(
+                    "你还没有登录小黑盒。\n发送 pbz登录 扫码，绑定你自己的账号。"
+                )
+                return
+
         try:
             async with self._session() as session:
                 data = await self._fetch_archive(session, acc)
         except HeyboxLoginRequired:
-            self._set_account(sender, {})
-            yield event.plain_result("小黑盒登录已失效，请重新发送 pbz登录 扫码。")
+            if others:
+                yield event.plain_result(
+                    f"QQ {target_qq} 的小黑盒登录已失效，需要他本人重新扫码。"
+                )
+            else:
+                self._set_account(sender, {})
+                yield event.plain_result("小黑盒登录已失效，请重新发送 pbz登录 扫码。")
             return
         except Exception as exc:  # noqa: BLE001
             yield event.plain_result(f"查询失败：{self._err(exc)}")
@@ -427,7 +481,8 @@ class PbzPlugin(Star):
 
         report = data.get("report") or {}
         steam = data.get("steam") or {}
-        avatar = f"https://q1.qlogo.cn/g?b=qq&nk={sender}&s=100" if sender.isdigit() else ""
+        avatar_qq = target_qq if others else sender
+        avatar = f"https://q1.qlogo.cn/g?b=qq&nk={avatar_qq}&s=100" if avatar_qq.isdigit() else ""
         view = _build_view(
             report,
             steam,
@@ -451,7 +506,7 @@ class PbzPlugin(Star):
             logger.warning(f"[pbz] 渲染失败，退回文本：{type(exc).__name__}: {exc}")
             yield event.plain_result(_text_report(view))
 
-    @filter.regex(r"^\s*(?i:pbz)(战绩|账号|状态)\s*$")
+    @filter.regex(r"^\s*(?i:pbz)\s*(帮助|help|菜单|战绩|账号|状态)(\s|$)")
     async def plain_command(self, event: AstrMessageEvent):
         """群聊里的裸指令。
 
@@ -459,8 +514,11 @@ class PbzPlugin(Star):
         ``/pbz战绩`` 或 @机器人 才认；这里用 regex 兜住不带前缀的写法。
         """
         text = str(event.message_str or "").strip().lower()
-        if text.endswith("战绩"):
-            async for item in self.record(event):
+        if text.endswith("帮助") or "help" in text or text.endswith("菜单"):
+            yield event.plain_result(HELP_TEXT)
+        elif text.startswith("pbz战绩"):
+            arg = text[len("pbz战绩"):].strip()
+            async for item in self.record(event, arg):
                 yield item
         elif text.endswith("账号"):
             async for item in self.account(event):
