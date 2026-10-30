@@ -8,8 +8,8 @@
   "allow_group_login": {
     "type": "bool",
     "description": "允许在群里发送登录二维码",
-    "hint": "关闭时只能在私聊里扫码登录，避免二维码被群里其他人扫走",
-    "default": false
+    "hint": "默认开启；关闭后只能在私聊扫码。群里扫码时注意别被其他人抢扫",
+    "default": true
   },
   "login_timeout_seconds": {
     "type": "int",

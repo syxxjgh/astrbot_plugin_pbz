@@ -65,7 +65,7 @@ class PbzPlugin(Star):
 
     @property
     def allow_group_login(self) -> bool:
-        return bool(self.config.get("allow_group_login", False))
+        return bool(self.config.get("allow_group_login", True))
 
     @property
     def login_mode(self) -> str:
