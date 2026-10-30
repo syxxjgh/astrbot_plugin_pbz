@@ -408,6 +408,24 @@ class PbzPlugin(Star):
             logger.warning(f"[pbz] 渲染失败，退回文本：{type(exc).__name__}: {exc}")
             yield event.plain_result(_text_report(view))
 
+    @filter.regex(r"^\s*(?i:pbz)(战绩|账号|状态)\s*$")
+    async def plain_command(self, event: AstrMessageEvent):
+        """群聊里的裸指令。
+
+        AstrBot 的 ``filter.command`` 受 ``wake_prefix`` 制约，群里必须发
+        ``/pbz战绩`` 或 @机器人 才认；这里用 regex 兜住不带前缀的写法。
+        """
+        text = str(event.message_str or "").strip().lower()
+        if text.endswith("战绩"):
+            async for item in self.record(event):
+                yield item
+        elif text.endswith("账号"):
+            async for item in self.account(event):
+                yield item
+        elif text.endswith("状态"):
+            async for item in self.status(event):
+                yield item
+
     async def terminate(self):
         return
 
