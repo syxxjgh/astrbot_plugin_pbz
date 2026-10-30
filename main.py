@@ -77,10 +77,10 @@ class PbzPlugin(Star):
         mode = str(self.config.get("device_id_mode", "reuse") or "reuse").strip().lower()
         return mode if mode in ("reuse", "random", "off") else "reuse"
 
-    def _resolve_device_id(self) -> str:
+    def _resolve_device_id(self, user_id: str = "") -> str:
         if self.device_id_mode == "off":
             return ""
-        existing = str(self._heybox.get("device_id") or "")
+        existing = str(self._account(user_id).get("device_id") or "") if user_id else ""
         if self.device_id_mode == "random" or not existing:
             return generate_device_id()
         return existing
@@ -100,18 +100,44 @@ class PbzPlugin(Star):
         tmp.replace(self._state_path)
 
     @property
-    def _heybox(self) -> dict[str, Any]:
+    def _legacy_account(self) -> dict[str, Any]:
+        """旧版单账号结构（整个插件只有一个小黑盒账号）。"""
         value = self._state.get("heybox")
         return value if isinstance(value, dict) else {}
 
-    @property
-    def logged_in(self) -> bool:
-        return bool(self._heybox.get("cookies"))
+    def _account(self, user_id: str) -> dict[str, Any]:
+        """按 QQ 号取小黑盒登录态。"""
+        value = (self._state.get("accounts") or {}).get(str(user_id))
+        return value if isinstance(value, dict) else {}
 
-    def _client(self) -> HeyboxClient:
+    def _set_account(self, user_id: str, data: dict[str, Any]) -> None:
+        accounts = self._state.setdefault("accounts", {})
+        if data:
+            accounts[str(user_id)] = data
+        else:
+            accounts.pop(str(user_id), None)
+        self._save_state()
+
+    def _resolve_account(self, event: AstrMessageEvent) -> tuple[dict[str, Any], bool]:
+        """返回 (登录态, 是否来自旧版共享账号)。
+
+        优先用发送者自己的账号；没有的话，私聊场景回退到旧版单账号，
+        群里不回退 —— 免得一个人登录、全群看到同一份数据。
+        """
+        sender = str(event.get_sender_id() or "")
+        account = self._account(sender)
+        if account:
+            return account, False
+        legacy = self._legacy_account
+        if legacy and event.is_private_chat():
+            return legacy, True
+        return {}, False
+
+    def _client(self, account: dict[str, Any] | None = None) -> HeyboxClient:
+        account = account or {}
         return HeyboxClient(
-            self._heybox.get("cookies") or {},
-            str(self._heybox.get("device_id") or ""),
+            account.get("cookies") or {},
+            str(account.get("device_id") or ""),
         )
 
     # ==================== 基础设施 ====================
@@ -120,12 +146,12 @@ class PbzPlugin(Star):
     def _session() -> aiohttp.ClientSession:
         return aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30))
 
-    async def _fetch_profile(self, session: aiohttp.ClientSession) -> dict[str, Any]:
+    async def _fetch_profile(self, session: aiohttp.ClientSession, account: dict[str, Any]) -> dict[str, Any]:
         """账号详情 + Steam 绑定 + 影之刃零记录。"""
-        client = self._client()
+        client = self._client(account)
         profile = await client.profile(session)
         info = pick_profile(profile)
-        uid = str(info.get("heybox_id") or self._heybox.get("uid") or "")
+        uid = str(info.get("heybox_id") or account.get("uid") or "")
 
         try:
             accounts = await client.cloud_accounts(session)
@@ -162,9 +188,9 @@ class PbzPlugin(Star):
         )
         return info
 
-    async def _fetch_archive(self, session: aiohttp.ClientSession) -> dict[str, Any]:
+    async def _fetch_archive(self, session: aiohttp.ClientSession, account: dict[str, Any]) -> dict[str, Any]:
         """Steam 账号 → 存档槽 → 档案概览。"""
-        client = self._client()
+        client = self._client(account)
         accounts = await client.cloud_accounts(session)
         steam = accounts.get("cur_steam") or {}
         archive_id = str(steam.get("account_id") or "")
@@ -249,7 +275,6 @@ class PbzPlugin(Star):
 
     # ==================== 登录 ====================
 
-    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("pbz登录")
     async def login(self, event: AstrMessageEvent):
         if self._login_lock.locked():
@@ -262,8 +287,9 @@ class PbzPlugin(Star):
             )
             return
 
+        sender = str(event.get_sender_id() or "")
         async with self._login_lock:
-            device_id = self._resolve_device_id()
+            device_id = self._resolve_device_id(sender)
             mode = self.login_mode
             label = "微信" if mode == "wechat" else "小黑盒 App"
             client = create_login_client(mode, device_id)
@@ -287,19 +313,18 @@ class PbzPlugin(Star):
                     if result.state is LoginState.SUCCESS:
                         if not result.cookies:
                             raise ValueError("扫码成功，但没有收到登录凭证")
-                        self._state["heybox"] = {
+                        self._set_account(sender, {
                             "cookies": result.cookies,
                             "uid": result.uid,
                             "nickname": result.nickname,
                             "device_id": device_id,
                             "login_at": int(time.time()),
-                        }
-                        self._save_state()
+                        })
                         who = result.nickname or result.uid or "未知账号"
                         text = f"小黑盒登录成功：{who}\n"
                         try:
                             async with self._session() as session:
-                                info = await self._fetch_profile(session)
+                                info = await self._fetch_profile(session, self._account(sender))
                             text += self._account_text(info) + "\n\n"
                             text += "发送 pbz战绩 查看你的影之刃零数据。"
                         except Exception as exc:  # noqa: BLE001
@@ -325,57 +350,66 @@ class PbzPlugin(Star):
 
     @filter.command("pbz账号")
     async def account(self, event: AstrMessageEvent):
-        if not self.logged_in:
-            yield event.plain_result("还没有登录小黑盒。管理员发送 pbz登录 扫码即可。")
+        sender = str(event.get_sender_id() or "")
+        acc, legacy = self._resolve_account(event)
+        if not acc:
+            yield event.plain_result(
+                "你还没有登录小黑盒。\n私聊机器人发送 pbz登录 扫码，绑定你自己的账号。"
+            )
             return
         try:
             async with self._session() as session:
-                info = await self._fetch_profile(session)
+                info = await self._fetch_profile(session, acc)
         except HeyboxLoginRequired:
-            self._state.pop("heybox", None)
-            self._save_state()
-            yield event.plain_result("小黑盒登录已失效，请管理员重新发送 pbz登录。")
+            self._set_account(sender, {})
+            yield event.plain_result("小黑盒登录已失效，请重新发送 pbz登录 扫码。")
             return
         except Exception as exc:  # noqa: BLE001
             yield event.plain_result(f"读取账号失败：{self._err(exc)}")
             return
-        yield event.plain_result(self._account_text(info))
+        text = self._account_text(info)
+        if legacy:
+            text = "（当前在用旧版共享登录，建议发送 pbz登录 绑定你自己的账号）\n" + text
+        yield event.plain_result(text)
 
-    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("pbz退出")
     async def logout(self, event: AstrMessageEvent):
-        if not self.logged_in:
-            yield event.plain_result("当前没有登录小黑盒。")
+        sender = str(event.get_sender_id() or "")
+        if not self._account(sender):
+            yield event.plain_result("你当前没有登录小黑盒。")
             return
-        self._state.pop("heybox", None)
-        self._save_state()
-        yield event.plain_result("已清除小黑盒登录信息。")
+        self._set_account(sender, {})
+        yield event.plain_result("已清除你自己的小黑盒登录信息。")
 
     @filter.command("pbz状态")
     async def status(self, event: AstrMessageEvent):
-        if self.logged_in:
-            hb = self._heybox
+        acc, legacy = self._resolve_account(event)
+        if acc:
+            tag = "（旧版共享账号）" if legacy else ""
             yield event.plain_result(
-                f"小黑盒：已登录（{hb.get('nickname') or hb.get('uid') or '未知'}）\n"
+                f"小黑盒：已登录{tag}（{acc.get('nickname') or acc.get('uid') or '未知'}）\n"
                 f"登录渠道：{self.login_mode}"
             )
         else:
-            yield event.plain_result("小黑盒：未登录")
+            yield event.plain_result("小黑盒：未登录\n私聊机器人发送 pbz登录 扫码绑定你自己的账号。")
 
     # ==================== 战绩 ====================
 
     @filter.command("pbz战绩")
     async def record(self, event: AstrMessageEvent):
-        if not self.logged_in:
-            yield event.plain_result("还没有登录小黑盒。管理员发送 pbz登录 扫码即可。")
+        sender = str(event.get_sender_id() or "")
+        acc, legacy = self._resolve_account(event)
+        if not acc:
+            yield event.plain_result(
+                "你还没有登录小黑盒。\n私聊机器人发送 pbz登录 扫码，绑定你自己的账号。"
+            )
             return
         try:
             async with self._session() as session:
-                data = await self._fetch_archive(session)
+                data = await self._fetch_archive(session, acc)
         except HeyboxLoginRequired:
-            self._state.pop("heybox", None)
-            self._save_state()
-            yield event.plain_result("小黑盒登录已失效，请管理员重新发送 pbz登录。")
+            self._set_account(sender, {})
+            yield event.plain_result("小黑盒登录已失效，请重新发送 pbz登录 扫码。")
             return
         except Exception as exc:  # noqa: BLE001
             yield event.plain_result(f"查询失败：{self._err(exc)}")
@@ -383,12 +417,11 @@ class PbzPlugin(Star):
 
         report = data.get("report") or {}
         steam = data.get("steam") or {}
-        sender = str(event.get_sender_id() or "")
         avatar = f"https://q1.qlogo.cn/g?b=qq&nk={sender}&s=100" if sender.isdigit() else ""
         view = _build_view(
             report,
             steam,
-            self._heybox.get("nickname") or "",
+            acc.get("nickname") or "",
             avatar,
             data.get("tasks"),
         )

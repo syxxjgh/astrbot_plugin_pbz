@@ -40,11 +40,13 @@ qrcode[pil]>=7.4
 
 | 指令 | 权限 | 说明 |
 |---|---|---|
-| `pbz登录` | 管理员 | 发二维码，用小黑盒 App 扫码 |
+| `pbz登录` | 所有人 | 发二维码，用小黑盒 App 扫码，绑定到自己的 QQ |
 | `pbz账号` | 所有人 | 昵称、小黑盒 ID、SteamID、好友码、影之刃零入库情况 |
 | `pbz战绩` | 所有人 | 生成生涯长图 |
 | `pbz状态` | 所有人 | 当前登录状态与渠道 |
-| `pbz退出` | 管理员 | 清除本地登录凭证 |
+| `pbz退出` | 所有人 | 清除自己的登录凭证 |
+
+**每个 QQ 一份登录态**，存在 `data/plugin_data/astrbot_plugin_pbz/state.json` 的 `accounts` 下，键是 QQ 号。同一个 QQ 在任何群、私聊都共用同一份凭证，扫一次码就够；换个人用就得自己扫一次。
 
 群聊里直接发 `pbz战绩` 就行，不用加前缀；`/pbz战绩` 也认。登录类指令默认只能私聊，要在群里扫去插件配置打开「允许在群里扫码登录」。
 
@@ -85,6 +87,20 @@ GET /game/phantom_blade_zero/archive/entries?archive_id=&slot_id=&section=bosses
 - 请求需要 App 风格的 UA（`ApiMaxJia/1.0`），web 扫码拿到的 `user_pkey` + `user_heybox_id` 可以直接调这些接口。
 
 这些都不是公开 API，小黑盒随时可能改。改版后插件会抛错而不是返回错误数据。
+
+## 账号是怎么存的
+
+```
+state.json
+└── accounts
+    ├── "623611712": { cookies, uid, nickname, device_id, login_at }
+    └── "673151930": { ... }
+```
+
+- **按 QQ 号索引**，每人一份 cookie，互不可见
+- **跨群复用**：同一个 QQ 在 A 群、B 群、私聊用的是同一份凭证，扫码一次即可
+- 没有登录的人发 `pbz战绩` 会提示去私聊扫码，不会串到别人的数据
+- 旧版本（只有一个全局 `heybox` 键）升级时会自动迁移到首次使用者的 QQ 下
 
 ## 常见问题
 
