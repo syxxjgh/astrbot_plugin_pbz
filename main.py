@@ -313,6 +313,16 @@ class PbzPlugin(Star):
                     if result.state is LoginState.SUCCESS:
                         if not result.cookies:
                             raise ValueError("扫码成功，但没有收到登录凭证")
+                        # 同一个小黑盒账号只保留最新归属：群里被抢扫后，
+                        # 本人再扫一次就能把别人名下的旧绑定顶掉。
+                        accounts = self._state.setdefault("accounts", {})
+                        for other_qq, other in list(accounts.items()):
+                            if (
+                                other_qq != sender
+                                and isinstance(other, dict)
+                                and str(other.get("uid") or "") == str(result.uid or "")
+                            ):
+                                accounts.pop(other_qq, None)
                         self._set_account(sender, {
                             "cookies": result.cookies,
                             "uid": result.uid,
