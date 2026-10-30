@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+*.log
+
+# 运行期数据（登录凭证、缓存）
+data/
+state.json
+*.tmp
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

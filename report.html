@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1080px; background: #0d0d11; color: #f2efe9;
+    font-family: "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { padding: 34px 31px 24px; }
+
+  .head { display: flex; align-items: center; gap: 19px; padding-bottom: 24px; }
+  .ava {
+    width: 82px; height: 82px; border-radius: 50%; flex: 0 0 82px;
+    border: 2px solid #4a3d24; background: #1c1913 center/cover no-repeat;
+  }
+  .who { flex: 1; min-width: 0; }
+  .title { font-size: 31px; font-weight: 600; letter-spacing: .5px; }
+  .title span { color: #8b8781; font-size: 23px; margin-left: 6px; }
+  .meta { font-size: 17px; color: #cbc6bf; margin-top: 9px; }
+  .meta b { color: #ece8e1; font-weight: 400; }
+
+  .stats { display: flex; gap: 12px; margin-bottom: 19px; }
+  .stat { flex: 1; background: #17171c; border-radius: 12px; padding: 19px; }
+  .stat .v { font-size: 35px; font-weight: 600; letter-spacing: -.5px; }
+  .stat .k { font-size: 16px; color: #c5c0b9; margin-top: 6px; }
+  .stat.a .v { color: #f7f4ee; }
+  .stat.b .v { color: #f26b6b; }
+  .stat.c .v { color: #e8b95a; }
+
+  .deathbar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(90deg, #4a1216 0%, #260f12 62%, #17171c 100%);
+    border-left: 5px solid #c0333f; border-radius: 7px;
+    padding: 18px 24px; margin-bottom: 26px;
+  }
+  .deathbar .l { font-size: 18px; color: #dccccc; }
+  .deathbar .n { font-size: 38px; font-weight: 600; color: #f2565f; margin: 0 9px; }
+  .deathbar .r { font-size: 17px; color: #c2adad; }
+
+  .sec-h { display: flex; align-items: baseline; margin-bottom: 16px; }
+  .sec-t { font-size: 26px; font-weight: 600; color: #f8f5ef; letter-spacing: .5px; }
+  .sec-c { font-size: 17px; color: #c5c0b9; margin-left: 14px; }
+  .sec-c b { color: #e05c5c; font-weight: 400; }
+
+  /* BOSS */
+  .bosses { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+  .boss { border-radius: 12px; overflow: hidden; background: #f4f2ee; }
+  .thumb { position: relative; height: 210px; background: #e7e4de center/cover no-repeat; }
+  .thumb .tag {
+    position: absolute; top: 0; left: 0; font-size: 17px; color: #fff;
+    background: rgba(20,20,22,.62); border-bottom-right-radius: 10px; padding: 6px 13px;
+  }
+  .thumb .kill {
+    position: absolute; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 5px;
+    background: #c62b33; color: #fff; border-radius: 16px; padding: 4px 13px 4px 9px;
+    font-size: 17px; font-weight: 500;
+  }
+  .thumb .kill svg { display: block; }
+  .thumb .kill.zero { background: #93908a; }
+  .binfo { padding: 13px 14px 16px; }
+  .bn { font-size: 20px; color: #1c1b1a; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bd { font-size: 16px; color: #6a6560; margin-top: 7px; }
+  .boss.fail { background: #26252a; }
+  .boss.fail .thumb { background-color: #2a292f; }
+  .boss.fail .bn { color: #bdb8b1; }
+  .boss.fail .bd { color: #a8a39c; }
+
+  /* 全收集 */
+  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px 26px; margin-bottom: 26px; }
+  .row .line { display: flex; justify-content: space-between; font-size: 17px; color: #d0cbc4; margin-bottom: 7px; }
+  .row .num { color: #c5c0b9; }
+  .bar { height: 5px; background: #2a2930; border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: #d8a54a; border-radius: 3px; }
+
+  /* 当前装备 */
+  .equip { margin-bottom: 26px; }
+  .eq-group { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+  .eq-label { width: 92px; flex: 0 0 92px; font-size: 16px; color: #c5c0b9; }
+  .eq-items { display: flex; gap: 10px; flex-wrap: wrap; }
+  .eq-item {
+    position: relative; width: 88px; height: 96px; border-radius: 10px;
+    background: #1b1b21; border: 1px solid #2b2a31; overflow: hidden;
+  }
+  .eq-item.empty { background: #141418; border-style: dashed; border-color: #2a2930; }
+  .eq-item .eq-ic {
+    position: absolute; left: 6px; right: 6px; top: 5px; bottom: 26px;
+    background: center/contain no-repeat;
+  }
+  .eq-item .eq-nm {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 24px; line-height: 24px;
+    padding: 0 4px; font-size: 12px; color: #d8d3cc; text-align: center;
+    background: rgba(10,10,12,.72);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .eq-item.empty .eq-nm { color: #6f6a66; }
+  .eq-item .lv {
+    position: absolute; right: 3px; top: 3px; font-size: 11px; color: #f0d093;
+    background: rgba(10,10,12,.8); border-radius: 4px; padding: 0 4px;
+  }
+
+  /* 任务 */
+  .task-stats { display: flex; gap: 34px; margin-bottom: 14px; }
+  .task-stat { text-align: center; }
+  .task-stat .v { font-size: 27px; font-weight: 600; color: #f2efe9; }
+  .task-stat .k { font-size: 14px; color: #b6b1aa; margin-top: 4px; }
+  .task-stat.done .v { color: #6fbf73; }
+  .task-stat.doing .v { color: #d8a54a; }
+  .task-list { margin-bottom: 26px; }
+  .task {
+    display: flex; align-items: center; gap: 14px;
+    background: #17171c; border-radius: 10px; padding: 13px 16px; margin-bottom: 9px;
+  }
+  .task .ico {
+    width: 46px; height: 46px; border-radius: 8px; flex: 0 0 46px;
+    background: #232228 center/cover no-repeat;
+  }
+  .task .tx { flex: 1; min-width: 0; }
+  .task .tt { font-size: 18px; color: #ece8e1; }
+  .task .ts { font-size: 14px; color: #b6b1aa; margin-top: 4px; }
+  .task .arrow { color: #8f8a84; font-size: 20px; }
+
+  /* 地图探索 */
+  .map-head, .map-row {
+    display: grid; grid-template-columns: 210px 1fr 100px 100px;
+    align-items: center; gap: 16px;
+  }
+  .map-head { font-size: 14px; color: #a9a49d; padding-bottom: 9px; border-bottom: 1px solid #232228; }
+  .map-row { padding: 11px 0; border-bottom: 1px solid #1a191e; font-size: 17px; }
+  .map-row .mn { color: #ddd9d2; }
+  .map-row .mb { display: flex; align-items: center; gap: 11px; }
+  .map-row .mb .bar { flex: 1; height: 5px; }
+  .map-row .mb .bar i { background: #5fa8d3; }
+  .map-row .mp { width: 46px; text-align: right; color: #c5c0b9; font-size: 15px; }
+  .map-row .mt, .map-row .md { text-align: right; color: #c5c0b9; font-size: 15px; }
+  .map-row .md { color: #ddd9d2; }
+
+  .foot {
+    margin-top: 22px; padding-top: 17px; border-top: 1px solid #232228;
+    font-size: 14px; color: #aba69f; display: flex; justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="ava"{% if d.avatar %} style="background-image:url({{ d.avatar }})"{% endif %}></div>
+    <div class="who">
+      <div class="title">影之刃零 <span>›</span></div>
+      <div class="meta">
+        玩家 <b>{{ d.nickname }}</b> · SteamID <b>{{ d.steam_id }}</b>
+        {%- if d.slot %} · 槽位 <b>{{ d.slot }}</b>{% endif %}
+        · {{ d.area }} · 难度 <b>{{ d.difficulty }}</b>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat a"><div class="v">{{ d.play_time_h }}</div><div class="k">总游戏时长</div></div>
+    <div class="stat b"><div class="v">{{ d.boss_killed }}</div><div class="k">BOSS 击败</div></div>
+    <div class="stat c"><div class="v">{{ d.achievement_done }}/{{ d.achievement_total }}</div><div class="k">存档成就</div></div>
+  </div>
+
+  <div class="deathbar">
+    <div class="l">累计身陨 <span class="n">{{ d.deaths }}</span> 次</div>
+    <div class="r">{{ d.cycle }}</div>
+  </div>
+
+  <div class="sec-h">
+    <div class="sec-t">BOSS 战绩</div>
+    <div class="sec-c">全部难度 <b>{{ d.boss_killed }}/{{ d.boss_total }}</b></div>
+  </div>
+  <div class="bosses">
+    {% for b in d.bosses[:20] %}
+    <div class="boss{% if not b.killed %} fail{% endif %}">
+      <div class="thumb" style="background-image:url({{ b.icon }})">
+        <div class="tag">{{ d.difficulty }}</div>
+        <div class="kill{% if not b.deaths %} zero{% endif %}">
+          <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 1C4.7 1 2.5 3.1 2.5 6c0 1.8 1 3.2 2.4 4v2.2c0 .6.4 1 1 1h4.2c.6 0 1-.4 1-1V10c1.4-.8 2.4-2.2 2.4-4 0-2.9-2.2-5-5.5-5z" fill="#fff"/>
+            <circle cx="6" cy="6.6" r="1.35" fill="#c62b33"/>
+            <circle cx="10" cy="6.6" r="1.35" fill="#c62b33"/>
+            <path d="M7.2 9.5h1.6v2.2H7.2z" fill="#c62b33"/>
+          </svg>
+          {{ b.deaths }}
+        </div>
+      </div>
+      <div class="binfo">
+        <div class="bn">{{ b.name }}</div>
+        <div class="bd">
+          {%- if b.killed -%}最佳用时 {{ b.best or '—' }}
+          {%- else -%}未通过 · 尝试 {{ b.attempt }}{%- endif -%}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="sec-h">
+    <div class="sec-t">全收集进度</div>
+    <div class="sec-c">{{ d.collect_done }}/{{ d.collect_total }}</div>
+  </div>
+  <div class="cols">
+    {% for c in d.collections %}
+    <div class="row">
+      <div class="line"><span>{{ c.name }}</span><span class="num">{{ c.done }}/{{ c.total }}</span></div>
+      <div class="bar"><i style="width: {{ c.percent }}%"></i></div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if d.equipment_groups %}
+  <div class="sec-h"><div class="sec-t">当前装备</div></div>
+  <div class="equip">
+    {% for g in d.equipment_groups %}
+    <div class="eq-group">
+      <div class="eq-label">{{ g.name }}</div>
+      <div class="eq-items">
+        {% for it in g["items"] %}
+        <div class="eq-item{% if it.empty %} empty{% endif %}">
+          {% if it.icon %}<div class="eq-ic" style="background-image:url({{ it.icon }})"></div>{% endif %}
+          {% if it.level and not it.empty %}<div class="lv">+{{ it.level }}</div>{% endif %}
+          <div class="eq-nm">{% if it.empty %}空槽{% else %}{{ it.name }}{% endif %}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="sec-h"><div class="sec-t">任务进度</div></div>
+  <div class="task-stats">
+    <div class="task-stat done"><div class="v">{{ d.task_done }}</div><div class="k">已完成</div></div>
+    <div class="task-stat doing"><div class="v">{{ d.task_progress }}</div><div class="k">进行中</div></div>
+    <div class="task-stat"><div class="v">0</div><div class="k">失败</div></div>
+    <div class="task-stat"><div class="v">{{ d.task_none }}</div><div class="k">未记录</div></div>
+    <div class="task-stat"><div class="v" style="color:#a8a29b">{{ d.task_total }}</div><div class="k">共</div></div>
+  </div>
+  <div class="task-list">
+    {% for q in d.quests[:4] %}
+    <div class="task">
+      <div class="ico"{% if q.icon %} style="background-image:url({{ q.icon }})"{% endif %}></div>
+      <div class="tx">
+        <div class="tt">{{ q.title }}</div>
+        <div class="ts">{{ q.kind }}{% if q.subtitle %} · {{ q.subtitle }}{% endif %}</div>
+      </div>
+      <div class="arrow">›</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="sec-h">
+    <div class="sec-t">地图探索</div>
+    <div class="sec-c">{{ d.explore_done }}/{{ d.explore_total }}</div>
+  </div>
+  <div class="map-head">
+    <div>地图</div><div>地图完整度</div><div style="text-align:right">宝藏数</div><div style="text-align:right">已收集</div>
+  </div>
+  {% for m in d.map_rows %}
+  <div class="map-row">
+    <div class="mn">{{ m.name }}</div>
+    <div class="mb">
+      <div class="bar"><i style="width: {{ m.percent }}%"></i></div>
+      <div class="mp">{{ m.percent }}%</div>
+    </div>
+    <div class="mt">{{ m.total }}</div>
+    <div class="md">{{ m.done }}</div>
+  </div>
+  {% endfor %}
+
+  <div class="foot">
+    <span>存档 {{ d.slot or '—' }} · 更新 {{ d.updated_at or d.save_time }}</span>
+    <span>数据来自小黑盒云存档解析</span>
+  </div>
+</div>
+</body>
+</html>

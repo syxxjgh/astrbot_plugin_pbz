@@ -1,0 +1,11 @@
+name: astrbot_plugin_pbz
+display_name: 影之刃零助手
+short_desc: 小黑盒扫码登录 + 影之刃零生涯战绩
+desc: 小黑盒 App 扫码登录（凭证落盘、重启有效），读取本人 Steam 云存档解析结果，输出身陨次数、BOSS 战绩、全收集进度、当前装备、任务进度与地图探索的生涯长图。数据全部来自小黑盒。
+version: 3.1.0
+author: local
+repo: ""
+help: "pbz登录：管理员用小黑盒 App 扫码登录（扫不出可改用微信）\npbz账号：账号详情，含小黑盒 ID、SteamID、影之刃零存档\npbz战绩：生涯长图（身陨 / BOSS / 收集 / 装备 / 任务 / 地图）\npbz状态：查看登录状态\npbz退出：清除登录"
+astrbot_version: ">=4.10.4"
+support_platforms:
+  - aiocqhttp

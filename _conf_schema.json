@@ -1,0 +1,26 @@
+{
+  "login_mode": {
+    "type": "string",
+    "description": "登录渠道",
+    "hint": "heybox：小黑盒 App 扫一扫；wechat：微信扫码（最终同样是登录小黑盒账号）。小黑盒扫不出来时切微信即可",
+    "default": "heybox"
+  },
+  "allow_group_login": {
+    "type": "bool",
+    "description": "允许在群里发送登录二维码",
+    "hint": "关闭时只能在私聊里扫码登录，避免二维码被群里其他人扫走",
+    "default": false
+  },
+  "login_timeout_seconds": {
+    "type": "int",
+    "description": "扫码等待超时（秒）",
+    "hint": "从小黑盒二维码发出开始计时，超时后需要重新发送 pbz登录",
+    "default": 120
+  },
+  "device_id_mode": {
+    "type": "string",
+    "description": "设备标识 device_id 策略",
+    "hint": "reuse：复用首次生成的值（推荐，官方客户端也是固定值）；random：每次登录换新；off：完全不发该参数",
+    "default": "reuse"
+  }
+}
