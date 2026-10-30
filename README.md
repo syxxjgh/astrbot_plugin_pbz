@@ -24,7 +24,7 @@
 
 ```bash
 cd <AstrBot>/data/plugins
-git clone https://github.com/<owner>/astrbot_plugin_pbz.git
+git clone https://github.com/syxxjgh/astrbot_plugin_pbz.git
 ```
 
 依赖只有两个，AstrBot 会自动装：
